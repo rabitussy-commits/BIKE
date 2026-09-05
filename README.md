@@ -1,2 +1,749 @@
-# BIKE
-Bike
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lap Ledger — Bike Track Tracker</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root{
+  --bg: #14160F;
+  --surface: #1E2117;
+  --surface-2: #262A1D;
+  --line: #3B3F2E;
+  --text: #ECE8DB;
+  --text-muted: #97937F;
+  --good: #7FA653;
+  --bad: #C05A3A;
+  --flag: #D9A441;
+  --neutral: #6E6A5C;
+  --accent2: #4A7C8C;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  line-height:1.5;
+  padding:0 0 60px 0;
+}
+.wrap{max-width:920px;margin:0 auto;padding:32px 20px 0;}
+
+/* ---------- Hero ---------- */
+.hero{
+  position:relative;
+  padding:28px 24px 26px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:4px;
+  overflow:hidden;
+}
+.hero-contour{
+  position:absolute; top:-40px; right:-30px; width:260px; height:260px;
+  opacity:0.16; pointer-events:none;
+}
+.hero-label{
+  font-family:'Inter',sans-serif; font-size:13px; color:var(--text-muted);
+  margin:0 0 6px;
+}
+.hero-number{
+  font-family:'Oswald',sans-serif; font-weight:700; font-size:56px;
+  line-height:1; letter-spacing:0.5px; margin:0;
+}
+.hero-number.negative{color:var(--bad);}
+.hero-number.positive{color:var(--good);}
+.hero-sub{
+  font-size:14px; color:var(--text-muted); margin:8px 0 20px;
+  max-width:60ch;
+}
+.stat-row{display:flex; gap:28px; flex-wrap:wrap;}
+.stat{min-width:110px;}
+.stat .n{font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700;}
+.stat .l{font-size:12px; color:var(--text-muted); margin-top:2px;}
+
+/* ---------- Insights ---------- */
+.insights{
+  margin-top:18px; padding:16px 20px; background:var(--surface); border:1px solid var(--line);
+  border-radius:4px;
+}
+.insights h2{font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; margin:0 0 10px; color:var(--flag);}
+.insights ul{margin:0; padding:0; list-style:none;}
+.insights li{
+  font-size:14px; padding:6px 0 6px 18px; position:relative; color:var(--text);
+  border-top:1px solid var(--line);
+}
+.insights li:first-child{border-top:none;}
+.insights li::before{content:"›"; position:absolute; left:0; color:var(--flag); font-weight:700;}
+
+/* ---------- Toolbar ---------- */
+.toolbar{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  margin:26px 0 12px; flex-wrap:wrap;
+}
+.toolbar h2{font-family:'Oswald',sans-serif; font-size:18px; font-weight:600; margin:0;}
+.toolbar .right{display:flex; gap:10px; align-items:center;}
+select, .btn, input, textarea{
+  font-family:'Inter',sans-serif; font-size:13px; color:var(--text);
+  background:var(--surface-2); border:1px solid var(--line); border-radius:3px;
+  padding:7px 10px;
+}
+select{cursor:pointer;}
+.btn{cursor:pointer; font-weight:600; transition:background 0.15s, border-color 0.15s;}
+.btn:hover{border-color:var(--flag);}
+.btn.primary{background:var(--flag); color:#1A1B12; border-color:var(--flag);}
+.btn.primary:hover{background:#e6b258;}
+.btn.ghost{background:transparent;}
+.btn.danger-step{color:var(--bad); border-color:var(--bad); background:transparent;}
+.legend{display:flex; gap:14px; font-size:12px; color:var(--text-muted); flex-wrap:wrap;}
+.legend span{display:inline-flex; align-items:center; gap:5px;}
+.dot{width:8px; height:8px; border-radius:50%; display:inline-block;}
+.dot.good{background:var(--good);} .dot.bad{background:var(--bad);} .dot.flag{background:var(--flag);}
+
+/* ---------- Track card ---------- */
+.track{
+  background:var(--surface); border:1px solid var(--line); border-radius:4px;
+  padding:18px 20px; margin-bottom:14px;
+}
+.track-head{display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; align-items:flex-start;}
+.track-name-input{
+  font-family:'Oswald',sans-serif; font-size:19px; font-weight:600; background:transparent;
+  border:1px solid transparent; padding:2px 4px; width:auto; min-width:140px; max-width:100%;
+}
+.track-name-input:hover, .track-name-input:focus{border-color:var(--line); background:var(--surface-2);}
+.track-desc{display:flex; align-items:center; gap:6px; margin-top:4px;}
+.track-desc-input{
+  font-size:13px; color:var(--text-muted); background:transparent; border:1px solid transparent;
+  padding:2px 4px; width:100%; max-width:520px;
+}
+.track-desc-input:hover, .track-desc-input:focus{border-color:var(--line); background:var(--surface-2); color:var(--text);}
+.badge{
+  font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; padding:4px 10px;
+  border-radius:3px; white-space:nowrap;
+}
+.badge.good{background:rgba(127,166,83,0.15); color:var(--good);}
+.badge.bad{background:rgba(192,90,58,0.15); color:var(--bad);}
+.badge.flag{background:rgba(217,164,65,0.15); color:var(--flag);}
+
+.lap-row{display:flex; align-items:flex-end; gap:6px; margin-top:16px; overflow-x:auto; padding-bottom:4px;}
+.lap-cell{
+  display:flex; flex-direction:column; align-items:center; min-width:64px; position:relative;
+}
+.lap-bar-holder{height:60px; display:flex; align-items:flex-end; width:100%; justify-content:center;}
+.lap-bar{
+  width:26px; border-radius:2px 2px 0 0; min-height:8px; position:relative;
+}
+.lap-time{
+  font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; margin-top:6px;
+}
+.lap-idx{font-size:10px; color:var(--text-muted); margin-top:2px;}
+.pb-star{position:absolute; top:-14px; font-size:11px; color:var(--flag);}
+.lap-extra{font-size:10px; color:var(--text-muted); margin-top:2px; text-align:center; max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.lap-remove{
+  position:absolute; top:-4px; right:2px; font-size:11px; color:var(--text-muted); cursor:pointer;
+  background:var(--surface-2); border-radius:50%; width:15px; height:15px; line-height:15px; text-align:center;
+  display:none;
+}
+.lap-cell:hover .lap-remove{display:block;}
+.lap-remove:hover{color:var(--bad);}
+.diff-arrow{
+  display:flex; flex-direction:column; align-items:center; font-family:'JetBrains Mono',monospace;
+  font-size:11px; min-width:44px; padding-bottom:22px; color:var(--text-muted);
+}
+.diff-arrow .d1{font-weight:700; font-size:12px;}
+.diff-arrow .d2{font-size:10px;}
+
+.track-foot{
+  display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:12px;
+  border-top:1px solid var(--line); flex-wrap:wrap; gap:10px;
+}
+.foot-stats{display:flex; gap:16px; font-size:12px; color:var(--text-muted); flex-wrap:wrap;}
+.foot-stats b{color:var(--text); font-family:'JetBrains Mono',monospace;}
+.foot-actions{display:flex; gap:8px; align-items:center;}
+.remove-track-btn{font-size:12px; background:transparent; border:none; color:var(--text-muted); cursor:pointer; text-decoration:underline;}
+.remove-track-btn:hover{color:var(--bad);}
+
+.add-lap-form{display:flex; gap:6px; align-items:center; margin-top:14px; flex-wrap:wrap;}
+.add-lap-form input{width:82px;}
+.add-lap-form input.note{width:130px;}
+.add-lap-form .hint{font-size:11px; color:var(--text-muted); width:100%; margin-top:4px;}
+
+/* ---------- Add track ---------- */
+.add-track{
+  background:var(--surface); border:1px dashed var(--line); border-radius:4px; padding:18px 20px; margin-top:8px;
+}
+.add-track h3{font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; margin:0 0 12px; color:var(--flag);}
+.add-track-grid{display:flex; gap:10px; flex-wrap:wrap;}
+.add-track-grid input{flex:1; min-width:140px;}
+.add-track-grid input.time{max-width:100px; flex:0 0 100px;}
+
+/* ---------- Toast ---------- */
+#toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--surface-2); border:1px solid var(--flag); color:var(--text);
+  padding:9px 16px; border-radius:4px; font-size:13px; opacity:0; transition:all 0.25s; pointer-events:none;
+}
+#toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+.sync-dot{width:7px; height:7px; border-radius:50%; background:var(--neutral); display:inline-block; margin-right:5px;}
+.sync-dot.ok{background:var(--good);}
+.sync-row{font-size:11px; color:var(--text-muted); display:flex; align-items:center; margin-top:10px;}
+
+.loading-screen{padding:60px 20px; text-align:center; color:var(--text-muted); font-size:14px;}
+
+@media (max-width:560px){
+  .hero-number{font-size:40px;}
+  .stat-row{gap:18px;}
+  .track-head{flex-direction:column;}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading-screen">Loading your rides…</div>
+</div>
+<div id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'bike-lap-tracker-v1';
+let state = null;
+let uiState = { sort: 'added', pendingRemove: null };
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function seedData(){
+  return {
+    tracks: [
+      { id: uid(), name: 'Fault Line', description: 'Handlebars at the sign \u2192 tire on the root',
+        laps: [ {id:uid(), time:73.5, effort:null, note:''}, {id:uid(), time:72, effort:null, note:''} ] },
+      { id: uid(), name: 'Rut Race', description: 'Little tree by the corner \u2192 skip to the last tree before the corner',
+        laps: [ {id:uid(), time:36, effort:null, note:''}, {id:uid(), time:33, effort:null, note:''} ] },
+      { id: uid(), name: 'Moon Landing', description: 'Sign \u2192 last jump',
+        laps: [ {id:uid(), time:29, effort:null, note:''}, {id:uid(), time:28, effort:null, note:''} ] },
+      { id: uid(), name: 'Drop Zone', description: 'First wooden feature \u2192 landing of the last',
+        laps: [ {id:uid(), time:50, effort:null, note:''}, {id:uid(), time:35, effort:null, note:''} ] },
+      { id: uid(), name: 'Fight Club', description: 'First drop \u2192 last berm tree',
+        laps: [ {id:uid(), time:53, effort:null, note:''}, {id:uid(), time:53, effort:null, note:''} ] },
+    ]
+  };
+}
+
+let storageAvailable = true;
+
+function extractValue(res){
+  // Normalise whatever shape the storage bridge hands back.
+  if(res == null) return null;
+  if(typeof res === 'string') return res;
+  if(typeof res === 'object'){
+    if(typeof res.value === 'string') return res.value;
+    if(res.value == null && 'key' in res) return null; // valid "not found" shape
+  }
+  throw new Error('Unexpected response type');
+}
+
+async function loadState(){
+  if(typeof window.storage === 'undefined' || !window.storage || typeof window.storage.get !== 'function'){
+    storageAvailable = false;
+    return seedData();
+  }
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    const raw = extractValue(res);
+    if(raw){
+      return JSON.parse(raw);
+    }
+  }catch(e){
+    console.error('Storage read error (falling back to local-only mode):', e);
+    storageAvailable = false;
+    return seedData();
+  }
+  const seeded = seedData();
+  await saveState(seeded);
+  return seeded;
+}
+
+async function saveState(s){
+  const dot = document.getElementById('syncDot');
+  if(!storageAvailable){
+    if(dot) dot.classList.remove('ok');
+    return;
+  }
+  try{
+    const result = await window.storage.set(STORAGE_KEY, JSON.stringify(s), false);
+    if(result == null) throw new Error('Storage set returned null');
+    if(dot) dot.classList.add('ok');
+  }catch(e){
+    console.error('Storage save error (switching to local-only mode):', e);
+    storageAvailable = false;
+    if(dot) dot.classList.remove('ok');
+    render();
+  }
+}
+
+function downloadBackup(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bike-lap-tracker-backup.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  hasUnsavedChanges = false;
+}
+
+function importBackupFile(file){
+  const reader = new FileReader();
+  reader.onload = async (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed || !Array.isArray(parsed.tracks)) throw new Error('Not a valid backup file');
+      state = parsed;
+      render();
+      await saveState(state);
+      showToast('Backup loaded');
+    }catch(err){
+      console.error('Import error:', err);
+      showToast('Could not read that file');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function fmt1(n){ return (Math.round(n*10)/10).toFixed(1); }
+function fmtSigned(n){ const v = fmt1(n); return (n>0?'+':'') + v; }
+
+function computeTrackMetrics(track){
+  const laps = track.laps;
+  const times = laps.map(l=>l.time);
+  const n = times.length;
+  const diffs = [];
+  for(let i=1;i<n;i++){
+    const abs = times[i]-times[i-1];
+    const pct = times[i-1] !== 0 ? (abs/times[i-1]*100) : 0;
+    let effortDiff = null;
+    if(laps[i].effort!=null && laps[i-1].effort!=null){
+      effortDiff = laps[i].effort - laps[i-1].effort;
+    }
+    diffs.push({abs, pct, effortDiff});
+  }
+  const avg = n ? times.reduce((a,b)=>a+b,0)/n : 0;
+  let bestIdx=0, worstIdx=0;
+  times.forEach((t,i)=>{ if(t<times[bestIdx]) bestIdx=i; if(t>times[worstIdx]) worstIdx=i; });
+  const overallDiff = n>=2 ? times[n-1]-times[0] : null;
+  const overallPct = (n>=2 && times[0]!==0) ? (overallDiff/times[0]*100) : null;
+  const variance = n ? times.reduce((a,t)=>a+Math.pow(t-avg,2),0)/n : 0;
+  const stdDev = Math.sqrt(variance);
+  return {times, diffs, avg, bestIdx, worstIdx, overallDiff, overallPct, stdDev, n};
+}
+
+function computeOverall(tracks){
+  const multi = tracks.filter(t=>t.laps.length>=2);
+  const totalLaps = tracks.reduce((a,t)=>a+t.laps.length,0);
+  let timeSaved = 0;
+  let pctList = [];
+  let best=null, flat=null, steadiest=null;
+  multi.forEach(t=>{
+    const m = computeTrackMetrics(t);
+    timeSaved += -m.overallDiff;
+    pctList.push(-m.overallPct);
+    if(!best || (-m.overallDiff) > best.diff) best = {track:t, diff:-m.overallDiff, pct:-m.overallPct};
+    if(m.overallDiff >= -0.05){
+      if(!flat || m.overallDiff > flat.diff) flat = {track:t, diff:m.overallDiff, pct:m.overallPct};
+    }
+    if(!steadiest || m.stdDev < steadiest.stdDev) steadiest = {track:t, stdDev:m.stdDev};
+  });
+  const avgPct = pctList.length ? pctList.reduce((a,b)=>a+b,0)/pctList.length : null;
+
+  let effortInsight = null;
+  for(const t of tracks){
+    const m = computeTrackMetrics(t);
+    for(let i=0;i<m.diffs.length;i++){
+      const d = m.diffs[i];
+      if(d.effortDiff!=null && d.abs<0 && d.effortDiff<=0){
+        effortInsight = `On ${escapeHtml(t.name)}, lap ${i+2} was ${fmt1(Math.abs(d.abs))}s faster at the same or lower perceived effort \u2014 that's a real efficiency gain, not just a harder push.`;
+        break;
+      }
+    }
+    if(effortInsight) break;
+  }
+  return {totalTracks:tracks.length, totalLaps, timeSaved, avgPct, best, flat, steadiest, effortInsight, multiCount:multi.length};
+}
+
+function contourSvg(){
+  return `<svg class="hero-contour" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M-10 140 C 40 100, 70 180, 110 130 S 180 60, 210 100" stroke="#D9A441" stroke-width="3" fill="none"/>
+    <path d="M-10 110 C 40 70, 70 150, 110 100 S 180 30, 210 70" stroke="#D9A441" stroke-width="2" fill="none" opacity="0.7"/>
+    <path d="M-10 80 C 40 40, 70 120, 110 70 S 180 0, 210 40" stroke="#D9A441" stroke-width="2" fill="none" opacity="0.5"/>
+  </svg>`;
+}
+
+function renderHero(tracks){
+  const o = computeOverall(tracks);
+  const savedClass = o.timeSaved > 0.05 ? 'positive' : (o.timeSaved < -0.05 ? 'negative' : '');
+  const savedText = o.multiCount ? `${o.timeSaved>=0?'':'+'}${fmt1(Math.abs(o.timeSaved))}s` : '\u2014';
+  return `
+  <div class="hero">
+    ${contourSvg()}
+    <p class="hero-label">TOTAL TIME SHAVED</p>
+    <p class="hero-number ${savedClass}">${savedText}</p>
+    <p class="hero-sub">${o.multiCount ? `Across ${o.multiCount} track${o.multiCount===1?'':'s'} with more than one lap logged, averaging ${o.avgPct!=null?fmt1(o.avgPct):'0.0'}% change lap-over-lap.` : 'Log a second lap on any track to start seeing improvement stats.'}</p>
+    <div class="stat-row">
+      <div class="stat"><div class="n">${o.totalTracks}</div><div class="l">tracks tracked</div></div>
+      <div class="stat"><div class="n">${o.totalLaps}</div><div class="l">laps logged</div></div>
+      <div class="stat"><div class="n">${o.best ? escapeHtml(o.best.track.name) : '\u2014'}</div><div class="l">biggest gain</div></div>
+      <div class="stat"><div class="n">${o.steadiest ? escapeHtml(o.steadiest.track.name) : '\u2014'}</div><div class="l">steadiest track</div></div>
+    </div>
+  </div>`;
+}
+
+function renderInsights(tracks){
+  const o = computeOverall(tracks);
+  const bullets = [];
+  if(o.multiCount){
+    bullets.push(`Overall: ${o.totalTracks} tracks and ${o.totalLaps} laps logged, ${o.timeSaved>=0?fmt1(o.timeSaved)+'s saved':fmt1(Math.abs(o.timeSaved))+'s slower'} so far (avg ${fmt1(o.avgPct)}% change per track).`);
+  }
+  if(o.best){
+    bullets.push(`Biggest gain: <b>${escapeHtml(o.best.track.name)}</b> \u2014 ${fmt1(o.best.diff)}s faster (${fmt1(o.best.pct)}%) from first lap to latest.`);
+  }
+  if(o.flat){
+    const same = Math.abs(o.flat.diff) < 0.05;
+    bullets.push(`${same ? 'No change yet on' : 'Lost time on'} <b>${escapeHtml(o.flat.track.name)}</b> \u2014 ${same ? 'identical lap times so far. Try a different line or braking point.' : fmt1(Math.abs(o.flat.diff))+'s slower on the latest lap.'}`);
+  }
+  if(o.steadiest && (!o.flat || o.steadiest.track.id !== o.flat.track.id)){
+    bullets.push(`Most consistent: <b>${escapeHtml(o.steadiest.track.name)}</b> \u2014 lap times stay within ${fmt1(o.steadiest.stdDev)}s of each other.`);
+  }
+  if(o.effortInsight){
+    bullets.push(o.effortInsight);
+  }
+  if(!bullets.length) return '';
+  return `
+  <div class="insights">
+    <h2>Insights</h2>
+    <ul>${bullets.map(b=>`<li>${b}</li>`).join('')}</ul>
+  </div>`;
+}
+
+function sortTracks(tracks){
+  const arr = [...tracks];
+  if(uiState.sort === 'improved'){
+    arr.sort((a,b)=>{
+      const ma = computeTrackMetrics(a), mb = computeTrackMetrics(b);
+      const da = ma.n>=2 ? ma.overallDiff : Infinity;
+      const db = mb.n>=2 ? mb.overallDiff : Infinity;
+      return da - db;
+    });
+  } else if(uiState.sort === 'slowest'){
+    arr.sort((a,b)=> computeTrackMetrics(b).avg - computeTrackMetrics(a).avg);
+  } else if(uiState.sort === 'name'){
+    arr.sort((a,b)=> a.name.localeCompare(b.name));
+  }
+  return arr;
+}
+
+function renderLapCell(track, metrics, idx){
+  const lap = track.laps[idx];
+  const maxTime = Math.max(...metrics.times);
+  const heightPct = maxTime>0 ? 15 + (lap.time/maxTime)*85 : 50;
+  let color = 'var(--flag)';
+  if(idx>0){
+    const d = metrics.diffs[idx-1].abs;
+    color = d < -0.001 ? 'var(--good)' : (d > 0.001 ? 'var(--bad)' : 'var(--neutral)');
+  }
+  const isPB = idx === metrics.bestIdx && metrics.n > 1;
+  return `
+  <div class="lap-cell" data-lap-id="${lap.id}" data-track-id="${track.id}">
+    <span class="lap-remove" data-action="remove-lap">\u00d7</span>
+    ${isPB ? '<span class="pb-star" title="Personal best">\u2605 PB</span>' : ''}
+    <div class="lap-bar-holder"><div class="lap-bar" style="height:${heightPct}%; background:${color};"></div></div>
+    <div class="lap-time">${fmt1(lap.time)}s</div>
+    <div class="lap-idx">Lap ${idx+1}${lap.effort!=null ? ' \u00b7 e'+lap.effort : ''}</div>
+    ${lap.note ? `<div class="lap-extra" title="${escapeHtml(lap.note)}">${escapeHtml(lap.note)}</div>` : ''}
+  </div>`;
+}
+
+function renderDiffArrow(metrics, i){
+  const d = metrics.diffs[i];
+  const cls = d.abs < -0.001 ? 'good' : (d.abs > 0.001 ? 'bad' : '');
+  const colorVar = cls === 'good' ? 'var(--good)' : cls === 'bad' ? 'var(--bad)' : 'var(--neutral)';
+  return `
+  <div class="diff-arrow" style="color:${colorVar}">
+    <div class="d1">${fmtSigned(d.abs)}s</div>
+    <div class="d2">${fmtSigned(d.pct)}%</div>
+  </div>`;
+}
+
+function renderTrack(track){
+  const metrics = computeTrackMetrics(track);
+  const laps = track.laps;
+  let lapsHtml = '';
+  laps.forEach((lap, i)=>{
+    lapsHtml += renderLapCell(track, metrics, i);
+    if(i < laps.length-1) lapsHtml += renderDiffArrow(metrics, i);
+  });
+
+  let badge = '';
+  if(metrics.n>=2){
+    const cls = metrics.overallDiff < -0.001 ? 'good' : (metrics.overallDiff > 0.001 ? 'bad' : 'flag');
+    badge = `<span class="badge ${cls}">${fmtSigned(metrics.overallDiff)}s (${fmtSigned(metrics.overallPct)}%)</span>`;
+  }
+
+  const isPendingRemove = uiState.pendingRemove === track.id;
+
+  return `
+  <div class="track" data-track-id="${track.id}">
+    <div class="track-head">
+      <div style="flex:1; min-width:200px;">
+        <input class="track-name-input" data-field="name" data-track-id="${track.id}" value="${escapeHtml(track.name)}" />
+        <div class="track-desc">
+          <input class="track-desc-input" data-field="description" data-track-id="${track.id}" value="${escapeHtml(track.description)}" placeholder="Course markers, e.g. Sign \u2192 last jump" />
+        </div>
+      </div>
+      ${badge}
+    </div>
+
+    <div class="lap-row">${lapsHtml}</div>
+
+    <div class="add-lap-form" data-track-id="${track.id}">
+      <input type="number" step="0.1" min="0" class="new-time" placeholder="time (s)" />
+      <input type="number" step="1" min="1" max="10" class="new-effort" placeholder="effort 1\u201310" style="width:96px;" />
+      <input type="text" class="note" placeholder="note (optional)" />
+      <button class="btn primary" data-action="add-lap">+ Add lap</button>
+      <div class="hint">Effort is optional \u2014 rate how hard that lap felt, 1 (easy) to 10 (max), to surface efficiency insights.</div>
+    </div>
+
+    <div class="track-foot">
+      <div class="foot-stats">
+        <span>Avg: <b>${fmt1(metrics.avg)}s</b></span>
+        <span>Best: <b>Lap ${metrics.bestIdx+1} (${fmt1(metrics.times[metrics.bestIdx])}s)</b></span>
+        ${metrics.n>1 ? `<span>Spread: <b>${fmt1(metrics.stdDev)}s</b></span>` : ''}
+      </div>
+      <div class="foot-actions">
+        ${isPendingRemove
+          ? `<span style="font-size:12px; color:var(--bad);">Remove this track?</span>
+             <button class="btn danger-step" data-action="confirm-remove-track">Yes, remove</button>
+             <button class="btn ghost" data-action="cancel-remove-track">Cancel</button>`
+          : `<button class="remove-track-btn" data-action="remove-track">Remove track</button>`
+        }
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAddTrackForm(){
+  return `
+  <div class="add-track">
+    <h3>+ Add a track</h3>
+    <div class="add-track-grid">
+      <input type="text" id="newTrackName" placeholder="Track name" />
+      <input type="text" id="newTrackDesc" placeholder="Course markers, e.g. Start sign \u2192 last jump" />
+      <input type="number" step="0.1" min="0" class="time" id="newTrackTime" placeholder="Lap 1 time (s)" />
+      <button class="btn primary" data-action="add-track">+ Add track</button>
+    </div>
+  </div>`;
+}
+
+function buildSummaryText(tracks){
+  const o = computeOverall(tracks);
+  let out = 'BIKE LAP LEDGER \u2014 SUMMARY\n\n';
+  tracks.forEach(t=>{
+    const m = computeTrackMetrics(t);
+    out += `${t.name} (${t.description})\n`;
+    t.laps.forEach((lap,i)=>{
+      let line = ` Lap ${i+1}: ${fmt1(lap.time)}s`;
+      if(i>0) line += ` (${fmtSigned(m.diffs[i-1].abs)}s, ${fmtSigned(m.diffs[i-1].pct)}%)`;
+      if(lap.effort!=null) line += ` [effort ${lap.effort}/10]`;
+      if(lap.note) line += ` \u2014 ${lap.note}`;
+      out += line + '\n';
+    });
+    out += ` Avg: ${fmt1(m.avg)}s | Best: Lap ${m.bestIdx+1}\n\n`;
+  });
+  if(o.multiCount){
+    out += `OVERALL: ${o.timeSaved>=0?fmt1(o.timeSaved)+'s saved':fmt1(Math.abs(o.timeSaved))+'s slower'} across ${o.multiCount} tracks, avg ${fmt1(o.avgPct)}% change.\n`;
+  }
+  return out;
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function render(){
+  const app = document.getElementById('app');
+  const sorted = sortTracks(state.tracks);
+  app.innerHTML = `
+    ${renderHero(state.tracks)}
+    ${renderInsights(state.tracks)}
+    <div class="toolbar">
+      <h2>Your tracks</h2>
+      <div class="right">
+        <div class="legend">
+          <span><span class="dot good"></span>faster</span>
+          <span><span class="dot bad"></span>slower</span>
+          <span><span class="dot flag"></span>first lap / no change</span>
+        </div>
+        <select id="sortSelect">
+          <option value="added" ${uiState.sort==='added'?'selected':''}>Order added</option>
+          <option value="improved" ${uiState.sort==='improved'?'selected':''}>Most improved first</option>
+          <option value="slowest" ${uiState.sort==='slowest'?'selected':''}>Slowest avg first</option>
+          <option value="name" ${uiState.sort==='name'?'selected':''}>Name A\u2013Z</option>
+        </select>
+        <button class="btn ghost" id="copySummaryBtn">Copy summary</button>
+      </div>
+    </div>
+    ${sorted.map(renderTrack).join('')}
+    ${renderAddTrackForm()}
+    <div class="sync-row">
+      <span class="sync-dot ${storageAvailable ? 'ok' : ''}" id="syncDot"></span>
+      ${storageAvailable
+        ? 'Saved privately to this app \u2014 only you can see it.'
+        : 'Auto-save isn\u2019t available right now, so changes won\u2019t persist on their own. Use <b>Export backup</b> before you close this, and <b>Import backup</b> next time to pick up where you left off.'}
+      <span style="margin-left:10px;">
+        <button class="btn ghost" id="exportBtn" style="padding:3px 8px; font-size:11px;">Export backup</button>
+        <button class="btn ghost" id="importBtn" style="padding:3px 8px; font-size:11px;">Import backup</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none;" />
+      </span>
+    </div>
+  `;
+  document.getElementById('sortSelect').addEventListener('change', e=>{
+    uiState.sort = e.target.value;
+    render();
+  });
+  document.getElementById('copySummaryBtn').addEventListener('click', ()=>{
+    const text = buildSummaryText(state.tracks);
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=>showToast('Summary copied')).catch(()=>showToast('Could not copy \u2014 try again'));
+    } else {
+      showToast('Clipboard not available');
+    }
+  });
+  document.getElementById('exportBtn').addEventListener('click', downloadBackup);
+  document.getElementById('importBtn').addEventListener('click', ()=>{
+    document.getElementById('importFile').click();
+  });
+  document.getElementById('importFile').addEventListener('change', (e)=>{
+    if(e.target.files && e.target.files[0]) importBackupFile(e.target.files[0]);
+    e.target.value = '';
+  });
+}
+
+let hasUnsavedChanges = false;
+
+async function mutate(fn){
+  fn(state);
+  render();
+  await saveState(state);
+  if(!storageAvailable) hasUnsavedChanges = true;
+}
+
+window.addEventListener('beforeunload', (e)=>{
+  if(!storageAvailable && hasUnsavedChanges){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+document.addEventListener('click', async (e)=>{
+  const actionEl = e.target.closest('[data-action]');
+  if(!actionEl) return;
+  const action = actionEl.dataset.action;
+
+  if(action === 'add-lap'){
+    const form = actionEl.closest('.add-lap-form');
+    const trackId = form.dataset.trackId;
+    const timeInput = form.querySelector('.new-time');
+    const effortInput = form.querySelector('.new-effort');
+    const noteInput = form.querySelector('.note');
+    const timeVal = parseFloat(timeInput.value);
+    if(isNaN(timeVal) || timeVal <= 0){
+      showToast('Enter a valid lap time first');
+      timeInput.focus();
+      return;
+    }
+    let effortVal = parseInt(effortInput.value, 10);
+    if(isNaN(effortVal)) effortVal = null;
+    else effortVal = Math.max(1, Math.min(10, effortVal));
+    const note = noteInput.value.trim();
+    await mutate(s=>{
+      const t = s.tracks.find(t=>t.id===trackId);
+      t.laps.push({id:uid(), time:timeVal, effort:effortVal, note});
+    });
+    showToast('Lap added');
+  }
+
+  else if(action === 'remove-lap'){
+    const cell = actionEl.closest('.lap-cell');
+    const trackId = cell.dataset.trackId;
+    const lapId = cell.dataset.lapId;
+    await mutate(s=>{
+      const t = s.tracks.find(t=>t.id===trackId);
+      t.laps = t.laps.filter(l=>l.id!==lapId);
+    });
+  }
+
+  else if(action === 'add-track'){
+    const nameEl = document.getElementById('newTrackName');
+    const descEl = document.getElementById('newTrackDesc');
+    const timeEl = document.getElementById('newTrackTime');
+    const name = nameEl.value.trim();
+    const desc = descEl.value.trim();
+    const time = parseFloat(timeEl.value);
+    if(!name){ showToast('Give the track a name'); nameEl.focus(); return; }
+    if(isNaN(time) || time <= 0){ showToast('Enter a valid lap time'); timeEl.focus(); return; }
+    await mutate(s=>{
+      s.tracks.push({ id: uid(), name, description: desc || 'No markers set yet', laps:[{id:uid(), time, effort:null, note:''}] });
+    });
+    showToast('Track added');
+  }
+
+  else if(action === 'remove-track'){
+    uiState.pendingRemove = actionEl.closest('.track').dataset.trackId;
+    render();
+  }
+  else if(action === 'cancel-remove-track'){
+    uiState.pendingRemove = null;
+    render();
+  }
+  else if(action === 'confirm-remove-track'){
+    const trackId = actionEl.closest('.track').dataset.trackId;
+    uiState.pendingRemove = null;
+    await mutate(s=>{ s.tracks = s.tracks.filter(t=>t.id!==trackId); });
+    showToast('Track removed');
+  }
+});
+
+document.addEventListener('change', async (e)=>{
+  const field = e.target.dataset ? e.target.dataset.field : null;
+  if(!field) return;
+  const trackId = e.target.dataset.trackId;
+  const value = e.target.value.trim();
+  await mutate(s=>{
+    const t = s.tracks.find(t=>t.id===trackId);
+    if(field === 'name') t.name = value || t.name;
+    if(field === 'description') t.description = value;
+  });
+});
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter' && (e.target.matches('.track-name-input') || e.target.matches('.track-desc-input') || e.target.matches('.new-time') || e.target.matches('.new-effort') || e.target.matches('.note') || e.target.id==='newTrackName' || e.target.id==='newTrackDesc' || e.target.id==='newTrackTime')){
+    e.target.blur();
+  }
+});
+
+(async function init(){
+  state = await loadState();
+  render();
+})();
+</script>
+</body>
+</html>
