@@ -236,30 +236,14 @@ function seedData(){
 
 let storageAvailable = true;
 
-function extractValue(res){
-  // Normalise whatever shape the storage bridge hands back.
-  if(res == null) return null;
-  if(typeof res === 'string') return res;
-  if(typeof res === 'object'){
-    if(typeof res.value === 'string') return res.value;
-    if(res.value == null && 'key' in res) return null; // valid "not found" shape
-  }
-  throw new Error('Unexpected response type');
-}
-
 async function loadState(){
-  if(typeof window.storage === 'undefined' || !window.storage || typeof window.storage.get !== 'function'){
-    storageAvailable = false;
-    return seedData();
-  }
   try{
-    const res = await window.storage.get(STORAGE_KEY, false);
-    const raw = extractValue(res);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if(raw){
       return JSON.parse(raw);
     }
   }catch(e){
-    console.error('Storage read error (falling back to local-only mode):', e);
+    console.error('localStorage read error (falling back to local-only mode):', e);
     storageAvailable = false;
     return seedData();
   }
@@ -270,16 +254,12 @@ async function loadState(){
 
 async function saveState(s){
   const dot = document.getElementById('syncDot');
-  if(!storageAvailable){
-    if(dot) dot.classList.remove('ok');
-    return;
-  }
   try{
-    const result = await window.storage.set(STORAGE_KEY, JSON.stringify(s), false);
-    if(result == null) throw new Error('Storage set returned null');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    storageAvailable = true;
     if(dot) dot.classList.add('ok');
   }catch(e){
-    console.error('Storage save error (switching to local-only mode):', e);
+    console.error('localStorage save error (switching to local-only mode):', e);
     storageAvailable = false;
     if(dot) dot.classList.remove('ok');
     render();
@@ -606,8 +586,8 @@ function render(){
     <div class="sync-row">
       <span class="sync-dot ${storageAvailable ? 'ok' : ''}" id="syncDot"></span>
       ${storageAvailable
-        ? 'Saved privately to this app \u2014 only you can see it.'
-        : 'Auto-save isn\u2019t available right now, so changes won\u2019t persist on their own. Use <b>Export backup</b> before you close this, and <b>Import backup</b> next time to pick up where you left off.'}
+        ? 'Saved in this browser \u2014 it\u2019ll still be here next time you visit on this device.'
+        : 'This browser is blocking local storage (common in private/incognito mode), so changes won\u2019t persist on their own. Use <b>Export backup</b> before you close this, and <b>Import backup</b> next time to pick up where you left off.'}
       <span style="margin-left:10px;">
         <button class="btn ghost" id="exportBtn" style="padding:3px 8px; font-size:11px;">Export backup</button>
         <button class="btn ghost" id="importBtn" style="padding:3px 8px; font-size:11px;">Import backup</button>
