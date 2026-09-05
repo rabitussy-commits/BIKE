@@ -256,6 +256,7 @@ async function saveState(s){
   const dot = document.getElementById('syncDot');
   try{
     localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    localStorage.setItem(STORAGE_KEY + ':savedAt', new Date().toISOString());
     storageAvailable = true;
     if(dot) dot.classList.add('ok');
   }catch(e){
@@ -264,6 +265,15 @@ async function saveState(s){
     if(dot) dot.classList.remove('ok');
     render();
   }
+}
+
+function lastSavedLabel(){
+  try{
+    const iso = localStorage.getItem(STORAGE_KEY + ':savedAt');
+    if(!iso) return null;
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  }catch(e){ return null; }
 }
 
 function downloadBackup(){
@@ -586,7 +596,7 @@ function render(){
     <div class="sync-row">
       <span class="sync-dot ${storageAvailable ? 'ok' : ''}" id="syncDot"></span>
       ${storageAvailable
-        ? 'Saved in this browser \u2014 it\u2019ll still be here next time you visit on this device.'
+        ? `Saved in this browser${lastSavedLabel() ? ' \u2014 last saved ' + lastSavedLabel() : ''}.`
         : 'This browser is blocking local storage (common in private/incognito mode), so changes won\u2019t persist on their own. Use <b>Export backup</b> before you close this, and <b>Import backup</b> next time to pick up where you left off.'}
       <span style="margin-left:10px;">
         <button class="btn ghost" id="exportBtn" style="padding:3px 8px; font-size:11px;">Export backup</button>
