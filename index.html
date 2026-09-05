@@ -141,6 +141,19 @@ select{cursor:pointer;}
 .lap-idx{font-size:10px; color:var(--text-muted); margin-top:2px;}
 .pb-star{position:absolute; top:-14px; font-size:11px; color:var(--flag);}
 .lap-extra{font-size:10px; color:var(--text-muted); margin-top:2px; text-align:center; max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.lap-conditions{
+  font-size:9px; margin-top:4px; padding:1px 5px; border-radius:8px; border:1px solid var(--line);
+  background:var(--surface-2); color:var(--text-muted); max-width:66px; cursor:pointer;
+}
+.chart-toggle{
+  font-size:12px; background:transparent; border:none; color:var(--accent2); cursor:pointer;
+  text-decoration:underline; padding:0;
+}
+.chart-wrap{margin-top:16px; padding:14px 4px 4px; border-top:1px solid var(--line);}
+.chart-wrap svg{width:100%; height:auto; display:block;}
+.condition-key{display:flex; gap:12px; font-size:10px; color:var(--text-muted); margin-top:8px; flex-wrap:wrap; padding-left:4px;}
+.condition-key span{display:inline-flex; align-items:center; gap:4px;}
+.condition-key .dot{width:7px; height:7px; border-radius:50%; display:inline-block;}
 .lap-remove{
   position:absolute; top:-4px; right:2px; font-size:11px; color:var(--text-muted); cursor:pointer;
   background:var(--surface-2); border-radius:50%; width:15px; height:15px; line-height:15px; text-align:center;
@@ -209,7 +222,7 @@ select{cursor:pointer;}
 <script>
 const STORAGE_KEY = 'bike-lap-tracker-v1';
 let state = null;
-let uiState = { sort: 'added', pendingRemove: null };
+let uiState = { sort: 'added', pendingRemove: null, expandedCharts: new Set() };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
@@ -334,6 +347,40 @@ function computeTrackMetrics(track){
   return {times, diffs, avg, bestIdx, worstIdx, overallDiff, overallPct, stdDev, n};
 }
 
+const conditionMeta = {
+  dry:   { label: 'Dry',   color: 'var(--flag)' },
+  damp:  { label: 'Damp',  color: 'var(--accent2)' },
+  wet:   { label: 'Wet',   color: '#3E6E82' },
+  muddy: { label: 'Muddy', color: 'var(--bad)' },
+};
+
+function computeConditionInsight(tracks){
+  let best = null; // {track, a, b, gap}
+  tracks.forEach(t=>{
+    const groups = {};
+    t.laps.forEach(l=>{
+      if(!l.conditions) return;
+      (groups[l.conditions] = groups[l.conditions] || []).push(l.time);
+    });
+    const keys = Object.keys(groups);
+    if(keys.length < 2) return;
+    for(let i=0;i<keys.length;i++){
+      for(let j=i+1;j<keys.length;j++){
+        const avgA = groups[keys[i]].reduce((a,b)=>a+b,0)/groups[keys[i]].length;
+        const avgB = groups[keys[j]].reduce((a,b)=>a+b,0)/groups[keys[j]].length;
+        const gap = Math.abs(avgA-avgB);
+        if(!best || gap > best.gap){
+          const slower = avgA > avgB ? keys[i] : keys[j];
+          const faster = avgA > avgB ? keys[j] : keys[i];
+          best = {track:t, slower, faster, gap};
+        }
+      }
+    }
+  });
+  if(!best) return null;
+  return `On <b>${escapeHtml(best.track.name)}</b>, ${conditionMeta[best.slower].label.toLowerCase()} laps average ${fmt1(best.gap)}s slower than ${conditionMeta[best.faster].label.toLowerCase()} ones \u2014 worth factoring in before comparing times across rides.`;
+}
+
 function computeOverall(tracks){
   const multi = tracks.filter(t=>t.laps.length>=2);
   const totalLaps = tracks.reduce((a,t)=>a+t.laps.length,0);
@@ -413,6 +460,10 @@ function renderInsights(tracks){
   if(o.effortInsight){
     bullets.push(o.effortInsight);
   }
+  const condInsight = computeConditionInsight(tracks);
+  if(condInsight){
+    bullets.push(condInsight);
+  }
   if(!bullets.length) return '';
   return `
   <div class="insights">
@@ -456,6 +507,10 @@ function renderLapCell(track, metrics, idx){
     <div class="lap-time">${fmt1(lap.time)}s</div>
     <div class="lap-idx">Lap ${idx+1}${lap.effort!=null ? ' \u00b7 e'+lap.effort : ''}</div>
     ${lap.note ? `<div class="lap-extra" title="${escapeHtml(lap.note)}">${escapeHtml(lap.note)}</div>` : ''}
+    <select class="lap-conditions" data-field="conditions" data-track-id="${track.id}" data-lap-id="${lap.id}" style="${lap.conditions ? `color:${conditionMeta[lap.conditions].color}; border-color:${conditionMeta[lap.conditions].color};` : ''}">
+      <option value="">conditions</option>
+      ${Object.keys(conditionMeta).map(k=>`<option value="${k}" ${lap.conditions===k?'selected':''}>${conditionMeta[k].label}</option>`).join('')}
+    </select>
   </div>`;
 }
 
@@ -467,6 +522,46 @@ function renderDiffArrow(metrics, i){
   <div class="diff-arrow" style="color:${colorVar}">
     <div class="d1">${fmtSigned(d.abs)}s</div>
     <div class="d2">${fmtSigned(d.pct)}%</div>
+  </div>`;
+}
+
+function renderProgressChart(track, metrics){
+  const times = metrics.times;
+  const w = 640, h = 160, padL = 34, padR = 14, padT = 14, padB = 26;
+  const maxT = Math.max(...times), minT = Math.min(...times);
+  const range = (maxT - minT) || 1;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const stepX = times.length > 1 ? innerW / (times.length - 1) : 0;
+  const xy = times.map((t,i)=>{
+    const x = padL + i*stepX;
+    const y = padT + (1 - (t-minT)/range) * innerH; // slower (higher t) near top, faster near bottom
+    return {x, y, t, i};
+  });
+  const linePoints = xy.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const dots = xy.map(p=>{
+    const lap = track.laps[p.i];
+    const dotColor = lap.conditions ? conditionMeta[lap.conditions].color : 'var(--flag)';
+    const isPB = p.i === metrics.bestIdx;
+    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${isPB?5:3.5}" fill="${dotColor}" stroke="var(--surface)" stroke-width="1.5">
+      <title>Lap ${p.i+1}: ${fmt1(p.t)}s${lap.conditions ? ' \u00b7 ' + conditionMeta[lap.conditions].label : ''}</title>
+    </circle>`;
+  }).join('');
+  const labels = xy.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-6}" font-size="9" fill="var(--text-muted)" text-anchor="middle">L${p.i+1}</text>`).join('');
+  const yTopLabel = `<text x="${padL-6}" y="${padT+4}" font-size="9" fill="var(--text-muted)" text-anchor="end">${fmt1(maxT)}s</text>`;
+  const yBotLabel = `<text x="${padL-6}" y="${h-padB}" font-size="9" fill="var(--text-muted)" text-anchor="end">${fmt1(minT)}s</text>`;
+  const gridTop = `<line x1="${padL}" y1="${padT}" x2="${w-padR}" y2="${padT}" stroke="var(--line)" stroke-width="1"/>`;
+  const gridBot = `<line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="var(--line)" stroke-width="1"/>`;
+  const usedConditions = [...new Set(track.laps.map(l=>l.conditions).filter(Boolean))];
+  const key = usedConditions.length ? `<div class="condition-key">${usedConditions.map(k=>`<span><span class="dot" style="background:${conditionMeta[k].color}"></span>${conditionMeta[k].label}</span>`).join('')}</div>` : '';
+  return `
+  <div class="chart-wrap">
+    <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+      ${gridTop}${gridBot}${yTopLabel}${yBotLabel}
+      <polyline points="${linePoints}" fill="none" stroke="var(--accent2)" stroke-width="2"/>
+      ${dots}
+      ${labels}
+    </svg>
+    ${key}
   </div>`;
 }
 
@@ -486,6 +581,7 @@ function renderTrack(track){
   }
 
   const isPendingRemove = uiState.pendingRemove === track.id;
+  const isChartOpen = uiState.expandedCharts.has(track.id);
 
   return `
   <div class="track" data-track-id="${track.id}">
@@ -501,9 +597,16 @@ function renderTrack(track){
 
     <div class="lap-row">${lapsHtml}</div>
 
+    ${metrics.n >= 2 ? `<button class="chart-toggle" data-action="toggle-chart" data-track-id="${track.id}">${isChartOpen ? 'Hide' : 'Show'} progress chart</button>` : ''}
+    ${isChartOpen ? renderProgressChart(track, metrics) : ''}
+
     <div class="add-lap-form" data-track-id="${track.id}">
       <input type="number" step="0.1" min="0" class="new-time" placeholder="time (s)" />
       <input type="number" step="1" min="1" max="10" class="new-effort" placeholder="effort 1\u201310" style="width:96px;" />
+      <select class="new-conditions" style="width:96px;">
+        <option value="">conditions</option>
+        ${Object.keys(conditionMeta).map(k=>`<option value="${k}">${conditionMeta[k].label}</option>`).join('')}
+      </select>
       <input type="text" class="note" placeholder="note (optional)" />
       <button class="btn primary" data-action="add-lap">+ Add lap</button>
       <div class="hint">Effort is optional \u2014 rate how hard that lap felt, 1 (easy) to 10 (max), to surface efficiency insights.</div>
@@ -550,6 +653,7 @@ function buildSummaryText(tracks){
       let line = ` Lap ${i+1}: ${fmt1(lap.time)}s`;
       if(i>0) line += ` (${fmtSigned(m.diffs[i-1].abs)}s, ${fmtSigned(m.diffs[i-1].pct)}%)`;
       if(lap.effort!=null) line += ` [effort ${lap.effort}/10]`;
+      if(lap.conditions) line += ` [${conditionMeta[lap.conditions].label}]`;
       if(lap.note) line += ` \u2014 ${lap.note}`;
       out += line + '\n';
     });
@@ -653,6 +757,7 @@ document.addEventListener('click', async (e)=>{
     const trackId = form.dataset.trackId;
     const timeInput = form.querySelector('.new-time');
     const effortInput = form.querySelector('.new-effort');
+    const conditionsInput = form.querySelector('.new-conditions');
     const noteInput = form.querySelector('.note');
     const timeVal = parseFloat(timeInput.value);
     if(isNaN(timeVal) || timeVal <= 0){
@@ -663,10 +768,11 @@ document.addEventListener('click', async (e)=>{
     let effortVal = parseInt(effortInput.value, 10);
     if(isNaN(effortVal)) effortVal = null;
     else effortVal = Math.max(1, Math.min(10, effortVal));
+    const conditions = conditionsInput.value || null;
     const note = noteInput.value.trim();
     await mutate(s=>{
       const t = s.tracks.find(t=>t.id===trackId);
-      t.laps.push({id:uid(), time:timeVal, effort:effortVal, note});
+      t.laps.push({id:uid(), time:timeVal, effort:effortVal, conditions, note});
     });
     showToast('Lap added');
   }
@@ -691,7 +797,7 @@ document.addEventListener('click', async (e)=>{
     if(!name){ showToast('Give the track a name'); nameEl.focus(); return; }
     if(isNaN(time) || time <= 0){ showToast('Enter a valid lap time'); timeEl.focus(); return; }
     await mutate(s=>{
-      s.tracks.push({ id: uid(), name, description: desc || 'No markers set yet', laps:[{id:uid(), time, effort:null, note:''}] });
+      s.tracks.push({ id: uid(), name, description: desc || 'No markers set yet', laps:[{id:uid(), time, effort:null, conditions:null, note:''}] });
     });
     showToast('Track added');
   }
@@ -710,15 +816,27 @@ document.addEventListener('click', async (e)=>{
     await mutate(s=>{ s.tracks = s.tracks.filter(t=>t.id!==trackId); });
     showToast('Track removed');
   }
+  else if(action === 'toggle-chart'){
+    const trackId = actionEl.dataset.trackId;
+    if(uiState.expandedCharts.has(trackId)) uiState.expandedCharts.delete(trackId);
+    else uiState.expandedCharts.add(trackId);
+    render();
+  }
 });
 
 document.addEventListener('change', async (e)=>{
   const field = e.target.dataset ? e.target.dataset.field : null;
   if(!field) return;
   const trackId = e.target.dataset.trackId;
+  const lapId = e.target.dataset.lapId;
   const value = e.target.value.trim();
   await mutate(s=>{
     const t = s.tracks.find(t=>t.id===trackId);
+    if(lapId){
+      const lap = t.laps.find(l=>l.id===lapId);
+      if(field === 'conditions') lap.conditions = value || null;
+      return;
+    }
     if(field === 'name') t.name = value || t.name;
     if(field === 'description') t.description = value;
   });
